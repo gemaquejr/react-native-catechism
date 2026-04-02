@@ -1,13 +1,24 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
 export default function TabLayout() {
   return (
-    <Tabs>
-
+    <Tabs
+      screenOptions={{
+        headerStyle: { backgroundColor: '#007bff' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+        tabBarActiveTintColor: '#007bff',
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Chamada',
+          title: 'Chamada do Dia',
+          tabBarLabel: 'Chamada',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="list" color={color} size={size} />
+          ),
         }}
       />
 
@@ -15,9 +26,11 @@ export default function TabLayout() {
         name="cadastro"
         options={{
           title: 'Cadastro',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-add" color={color} size={size} />
+          ),
         }}
       />
-
     </Tabs>
   );
 }
