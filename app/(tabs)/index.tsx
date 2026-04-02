@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
@@ -23,6 +24,8 @@ export default function HomeScreen() {
 
   const dataHoje = getDataHoje();
   const presentesHoje = presencas[dataHoje] || [];
+
+  const router = useRouter();
 
   // 🔽 carregar dados ao abrir
   useFocusEffect(
@@ -115,6 +118,27 @@ export default function HomeScreen() {
           }}
         />
 
+        <TouchableOpacity
+          onPress={() => router.push('/cadastro')}
+          style={{
+            position: 'absolute',
+            bottom: 30,
+            right: 20,
+            backgroundColor: '#007bff',
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            justifyContent: 'center',
+            alignItems: 'center',
+            elevation: 5, // Android
+            shadowColor: '#000', // iOS
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+          }}
+        >
+          <Ionicons name="add" size={30} color="#fff" />
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
