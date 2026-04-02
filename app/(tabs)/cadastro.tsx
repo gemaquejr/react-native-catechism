@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Aluno = {
     id: string;
@@ -13,6 +14,8 @@ export default function CadastroScreen() {
     const [nome, setNome] = useState('');
     const [pai, setPai] = useState('');
     const [mae, setMae] = useState('');
+
+    const router = useRouter();
 
     async function adicionarAluno() {
         if (!nome) return;
@@ -31,9 +34,16 @@ export default function CadastroScreen() {
 
         await AsyncStorage.setItem('alunos', JSON.stringify(atualizados));
 
+        // limpar campos
         setNome('');
         setPai('');
         setMae('');
+
+        // feedback
+        Alert.alert('Sucesso', 'Aluno cadastrado ✅');
+
+        // voltar pra tela anterior
+        router.back();
     }
 
     return (
