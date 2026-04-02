@@ -80,11 +80,11 @@ export default function HomeScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={{ flex: 1, padding: 20, marginTop: 50, backgroundColor: '#fff' }}>
+      <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
 
         {/* CONTADOR */}
         <Text style={{ marginTop: 20, fontSize: 16 }}>
-          Presentes hoje: {presentes}
+          👥 Presentes: {presentes}
         </Text>
 
         {/* LISTA */}
@@ -105,8 +105,9 @@ export default function HomeScreen() {
                   <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
                     {item.nome}
                   </Text>
-                  <Text style={{ fontSize: 12, color: '#555' }}>
-                    Pai: {item.pai} | Mãe: {item.mae}
+
+                  <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                    Responsáveis: {item.pai} / {item.mae}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -118,13 +119,3 @@ export default function HomeScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-// 🎨 estilo reaproveitável
-const input = {
-  borderWidth: 1,
-  borderColor: '#ddd',
-  marginBottom: 10,
-  padding: 12,
-  borderRadius: 8,
-  backgroundColor: '#f9f9f9'
-};

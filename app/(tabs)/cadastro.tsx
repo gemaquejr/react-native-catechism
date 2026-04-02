@@ -37,7 +37,7 @@ export default function CadastroScreen() {
     }
 
     return (
-        <View style={{ flex: 1, padding: 20, marginTop: 50, backgroundColor: '#fff' }}>
+        <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
 
             <Text style={{ fontSize: 20, marginBottom: 10 }}>
                 Cadastro de Aluno
