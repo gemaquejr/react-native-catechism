@@ -1,39 +1,59 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 type Aluno = {
   id: string;
   nome: string;
-  presente: boolean;
+  pai: string;
+  mae: string;
 };
 
 export default function HomeScreen() {
   const [nome, setNome] = useState('');
-  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [pai, setPai] = useState('');
+  const [mae, setMae] = useState('');
 
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [presencas, setPresencas] = useState<{ [data: string]: string[] }>({});
+
+  const dataHoje = getDataHoje();
+  const presentesHoje = presencas[dataHoje] || [];
+
+  // 🔽 carregar dados ao abrir
   useEffect(() => {
-    carregarAlunos();
+    carregarDados();
   }, []);
 
+  // 💾 salvar sempre que mudar
   useEffect(() => {
-    salvarAlunos();
-  }, [alunos]);
+    salvarDados();
+  }, [alunos, presencas]);
 
-  async function carregarAlunos() {
+  async function carregarDados() {
     try {
-      const dados = await AsyncStorage.getItem('alunos');
-      if (dados !== null) {
-        setAlunos(JSON.parse(dados));
-      }
+      const alunosSalvos = await AsyncStorage.getItem('alunos');
+      const presencasSalvas = await AsyncStorage.getItem('presencas');
+
+      if (alunosSalvos) setAlunos(JSON.parse(alunosSalvos));
+      if (presencasSalvas) setPresencas(JSON.parse(presencasSalvas));
     } catch (error) {
       console.log(error);
     }
   }
 
-  async function salvarAlunos() {
+  async function salvarDados() {
     try {
       await AsyncStorage.setItem('alunos', JSON.stringify(alunos));
+      await AsyncStorage.setItem('presencas', JSON.stringify(presencas));
     } catch (error) {
       console.log(error);
     }
@@ -45,24 +65,34 @@ export default function HomeScreen() {
     const novoAluno: Aluno = {
       id: Date.now().toString(),
       nome,
-      presente: false
+      pai,
+      mae
     };
 
     setAlunos([...alunos, novoAluno]);
+
     setNome('');
+    setPai('');
+    setMae('');
   }
 
   function marcarPresenca(id: string) {
-    const atualizados = alunos.map(aluno =>
-      aluno.id === id
-        ? { ...aluno, presente: !aluno.presente }
-        : aluno
-    );
+    const listaHoje = presentesHoje.includes(id)
+      ? presentesHoje.filter(i => i !== id)
+      : [...presentesHoje, id];
 
-    setAlunos(atualizados);
+    setPresencas({
+      ...presencas,
+      [dataHoje]: listaHoje
+    });
   }
 
-  const presentes = alunos.filter(a => a.presente).length;
+  function getDataHoje() {
+    const hoje = new Date();
+    return hoje.toISOString().split('T')[0];
+  }
+
+  const presentes = presentesHoje.length;
 
   return (
     <KeyboardAvoidingView
@@ -71,21 +101,29 @@ export default function HomeScreen() {
     >
       <View style={{ flex: 1, padding: 20, marginTop: 50, backgroundColor: '#fff' }}>
 
+        {/* INPUTS */}
         <TextInput
           placeholder="Nome do aluno"
-          placeholderTextColor="#999"
           value={nome}
-          onChangeText={(text) => setNome(text)}
-          style={{
-            borderWidth: 1,
-            borderColor: '#ddd',
-            marginBottom: 10,
-            padding: 12,
-            borderRadius: 8,
-            backgroundColor: '#f9f9f9'
-          }}
+          onChangeText={setNome}
+          style={input}
         />
 
+        <TextInput
+          placeholder="Nome do pai"
+          value={pai}
+          onChangeText={setPai}
+          style={input}
+        />
+
+        <TextInput
+          placeholder="Nome da mãe"
+          value={mae}
+          onChangeText={setMae}
+          style={input}
+        />
+
+        {/* BOTÃO */}
         <TouchableOpacity
           onPress={adicionarAluno}
           disabled={!nome}
@@ -97,34 +135,53 @@ export default function HomeScreen() {
           }}
         >
           <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-            Adicionar
+            Cadastrar aluno
           </Text>
         </TouchableOpacity>
 
-        <Text style={{ marginTop: 20 }}>
-          Presentes: {presentes}
+        {/* CONTADOR */}
+        <Text style={{ marginTop: 20, fontSize: 16 }}>
+          Presentes hoje: {presentes}
         </Text>
 
+        {/* LISTA */}
         <FlatList
           data={alunos}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => marcarPresenca(item.id)}>
-              <View style={{
-                padding: 12,
-                backgroundColor: item.presente ? '#d4edda' : '#f1f1f1',
-                marginTop: 8,
-                borderRadius: 8
-              }}>
-                <Text style={{ fontSize: 16 }}>
-                  {item.nome}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          renderItem={({ item }) => {
+            const estaPresente = presentesHoje.includes(item.id);
+
+            return (
+              <TouchableOpacity onPress={() => marcarPresenca(item.id)}>
+                <View style={{
+                  padding: 12,
+                  backgroundColor: estaPresente ? '#d4edda' : '#f1f1f1',
+                  marginTop: 8,
+                  borderRadius: 8
+                }}>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
+                    {item.nome}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#555' }}>
+                    Pai: {item.pai} | Mãe: {item.mae}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
         />
 
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+// 🎨 estilo reaproveitável
+const input = {
+  borderWidth: 1,
+  borderColor: '#ddd',
+  marginBottom: 10,
+  padding: 12,
+  borderRadius: 8,
+  backgroundColor: '#f9f9f9'
+};
