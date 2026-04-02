@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Text,
-  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -18,10 +18,6 @@ type Aluno = {
 };
 
 export default function HomeScreen() {
-  const [nome, setNome] = useState('');
-  const [pai, setPai] = useState('');
-  const [mae, setMae] = useState('');
-
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [presencas, setPresencas] = useState<{ [data: string]: string[] }>({});
 
@@ -29,9 +25,11 @@ export default function HomeScreen() {
   const presentesHoje = presencas[dataHoje] || [];
 
   // 🔽 carregar dados ao abrir
-  useEffect(() => {
-    carregarDados();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      carregarDados();
+    }, [])
+  );
 
   // 💾 salvar sempre que mudar
   useEffect(() => {
@@ -59,23 +57,6 @@ export default function HomeScreen() {
     }
   }
 
-  function adicionarAluno() {
-    if (!nome) return;
-
-    const novoAluno: Aluno = {
-      id: Date.now().toString(),
-      nome,
-      pai,
-      mae
-    };
-
-    setAlunos([...alunos, novoAluno]);
-
-    setNome('');
-    setPai('');
-    setMae('');
-  }
-
   function marcarPresenca(id: string) {
     const listaHoje = presentesHoje.includes(id)
       ? presentesHoje.filter(i => i !== id)
@@ -100,44 +81,6 @@ export default function HomeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, padding: 20, marginTop: 50, backgroundColor: '#fff' }}>
-
-        {/* INPUTS */}
-        <TextInput
-          placeholder="Nome do aluno"
-          value={nome}
-          onChangeText={setNome}
-          style={input}
-        />
-
-        <TextInput
-          placeholder="Nome do pai"
-          value={pai}
-          onChangeText={setPai}
-          style={input}
-        />
-
-        <TextInput
-          placeholder="Nome da mãe"
-          value={mae}
-          onChangeText={setMae}
-          style={input}
-        />
-
-        {/* BOTÃO */}
-        <TouchableOpacity
-          onPress={adicionarAluno}
-          disabled={!nome}
-          style={{
-            backgroundColor: nome ? '#007bff' : '#999',
-            padding: 12,
-            borderRadius: 8,
-            alignItems: 'center'
-          }}
-        >
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-            Cadastrar aluno
-          </Text>
-        </TouchableOpacity>
 
         {/* CONTADOR */}
         <Text style={{ marginTop: 20, fontSize: 16 }}>
