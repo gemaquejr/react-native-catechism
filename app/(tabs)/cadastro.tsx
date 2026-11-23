@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Aluno = {
@@ -14,35 +14,53 @@ export default function CadastroScreen() {
     const [nome, setNome] = useState('');
     const [pai, setPai] = useState('');
     const [mae, setMae] = useState('');
+    const [erro, setErro] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const gravacaoEmAndamento = useRef(false);
 
     const router = useRouter();
 
     async function adicionarAluno() {
-        if (!nome) return;
+        if (gravacaoEmAndamento.current) return;
 
-        const novoAluno: Aluno = {
-            id: Date.now().toString(),
-            nome,
-            pai,
-            mae
-        };
+        const nomeLimpo = nome.trim();
 
-        const dados = await AsyncStorage.getItem('alunos');
-        const alunos: Aluno[] = dados ? JSON.parse(dados) : [];
+        if (!nomeLimpo) {
+            setErro('Informe o nome do aluno.');
+            return;
+        }
 
-        const atualizados = [...alunos, novoAluno];
+        gravacaoEmAndamento.current = true;
+        setSalvando(true);
+        setErro('');
 
-        await AsyncStorage.setItem('alunos', JSON.stringify(atualizados));
+        try {
+            const dados = await AsyncStorage.getItem('alunos');
+            const alunos: Aluno[] = dados === null ? [] : JSON.parse(dados);
+            const novoAluno: Aluno = {
+                id: Date.now().toString(),
+                nome: nomeLimpo,
+                pai,
+                mae,
+            };
 
-        // limpar campos
+            await AsyncStorage.setItem(
+                'alunos',
+                JSON.stringify([...alunos, novoAluno]),
+            );
+        } catch (error) {
+            console.error(error);
+            setErro('Não foi possível salvar o cadastro. Tente novamente.');
+            return;
+        } finally {
+            gravacaoEmAndamento.current = false;
+            setSalvando(false);
+        }
+
         setNome('');
         setPai('');
         setMae('');
-
-        // feedback
         Alert.alert('Sucesso', 'Aluno cadastrado ✅');
-
-        // voltar pra tela anterior
         router.back();
     }
 
@@ -57,7 +75,10 @@ export default function CadastroScreen() {
             <TextInput placeholder="Nome do pai" value={pai} onChangeText={setPai} style={input} />
             <TextInput placeholder="Nome da mãe" value={mae} onChangeText={setMae} style={input} />
 
+            {erro ? <Text style={{ color: '#b91c1c', marginBottom: 10 }}>{erro}</Text> : null}
+
             <TouchableOpacity
+                disabled={salvando}
                 onPress={adicionarAluno}
                 style={{
                     backgroundColor: '#007bff',
