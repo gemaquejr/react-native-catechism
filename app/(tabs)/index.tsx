@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 
 type Aluno = {
@@ -20,55 +21,94 @@ type Aluno = {
 
 export default function HomeScreen() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
-  const [presencas, setPresencas] = useState<{ [data: string]: string[] }>({});
+  const [presencas, setPresencas] = useState<Record<string, string[]> | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const gravacaoEmAndamento = useRef(false);
 
   const dataHoje = getDataHoje();
-  const presentesHoje = presencas[dataHoje] || [];
+  const presentesHoje = presencas?.[dataHoje] ?? [];
 
   const router = useRouter();
 
-  // 🔽 carregar dados ao abrir
   useFocusEffect(
     useCallback(() => {
-      carregarDados();
-    }, [])
+      let ativo = true;
+
+      async function carregarAlunos() {
+        try {
+          const dados = await AsyncStorage.getItem('alunos');
+
+          if (ativo) {
+            setAlunos(dados === null ? [] : JSON.parse(dados));
+          }
+        } catch (error) {
+          console.error(error);
+
+          if (ativo) {
+            Alert.alert('Erro', 'Não foi possível carregar os alunos.');
+          }
+        }
+      }
+
+      void carregarAlunos();
+
+      return () => {
+        ativo = false;
+      };
+    }, []),
   );
 
-  // 💾 salvar sempre que mudar
   useEffect(() => {
-    salvarDados();
-  }, [alunos, presencas]);
+    let ativo = true;
 
-  async function carregarDados() {
-    try {
-      const alunosSalvos = await AsyncStorage.getItem('alunos');
-      const presencasSalvas = await AsyncStorage.getItem('presencas');
+    async function carregarPresencas() {
+      try {
+        const dados = await AsyncStorage.getItem('presencas');
 
-      if (alunosSalvos) setAlunos(JSON.parse(alunosSalvos));
-      if (presencasSalvas) setPresencas(JSON.parse(presencasSalvas));
-    } catch (error) {
-      console.log(error);
+        if (ativo) {
+          setPresencas(dados === null ? {} : JSON.parse(dados));
+        }
+      } catch (error) {
+        console.error(error);
+
+        if (ativo) {
+          Alert.alert(
+            'Erro ao carregar a chamada',
+            'Feche e reabra o app para tentar novamente.',
+          );
+        }
+      }
     }
-  }
 
-  async function salvarDados() {
-    try {
-      await AsyncStorage.setItem('alunos', JSON.stringify(alunos));
-      await AsyncStorage.setItem('presencas', JSON.stringify(presencas));
-    } catch (error) {
-      console.log(error);
-    }
-  }
+    void carregarPresencas();
 
-  function marcarPresenca(id: string) {
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  async function marcarPresenca(id: string) {
+    if (presencas === null || gravacaoEmAndamento.current) return;
+
     const listaHoje = presentesHoje.includes(id)
-      ? presentesHoje.filter(i => i !== id)
+      ? presentesHoje.filter((presenteId) => presenteId !== id)
       : [...presentesHoje, id];
 
-    setPresencas({
-      ...presencas,
-      [dataHoje]: listaHoje
-    });
+    const atualizadas = { ...presencas, [dataHoje]: listaHoje };
+
+    gravacaoEmAndamento.current = true;
+    setSalvando(true);
+
+    try {
+      await AsyncStorage.setItem('presencas', JSON.stringify(atualizadas));
+      setPresencas(atualizadas);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Não foi possível salvar a presença. Tente novamente.');
+    } finally {
+      gravacaoEmAndamento.current = false;
+      setSalvando(false);
+    }
   }
 
   function getDataHoje() {
@@ -98,7 +138,10 @@ export default function HomeScreen() {
             const estaPresente = presentesHoje.includes(item.id);
 
             return (
-              <TouchableOpacity onPress={() => marcarPresenca(item.id)}>
+              <TouchableOpacity
+                disabled={presencas === null || salvando}
+                onPress={() => marcarPresenca(item.id)}
+              >
                 <View style={{
                   padding: 12,
                   backgroundColor: estaPresente ? '#d4edda' : '#f1f1f1',
