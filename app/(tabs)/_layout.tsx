@@ -31,6 +31,8 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen name="turmas" options={{ title: 'Turmas' }} />
     </Tabs>
   );
 }
