@@ -1,8 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, FlatList, Text, TextInput, View } from 'react-native';
 
+import { matricularAluno } from '@/storage/matriculas';
+
 type Turma = {
+    id: string;
+    nome: string;
+};
+
+type AlunoParaMatricula = {
     id: string;
     nome: string;
 };
@@ -13,6 +21,12 @@ export default function TurmasScreen() {
     const [erro, setErro] = useState('');
     const [salvando, setSalvando] = useState(false);
     const gravando = useRef(false);
+    const [alunos, setAlunos] = useState<AlunoParaMatricula[] | null>(null);
+    const [turmaSelecionada, setTurmaSelecionada] = useState<Turma | null>(null);
+    const [alunoSelecionado, setAlunoSelecionado] = useState<AlunoParaMatricula | null>(null);
+    const [matriculando, setMatriculando] = useState(false);
+    const [mensagemMatricula, setMensagemMatricula] = useState('');
+    const matriculaEmAndamento = useRef(false);
 
     useEffect(() => {
         let ativo = true;
@@ -37,6 +51,59 @@ export default function TurmasScreen() {
             ativo = false;
         };
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            let ativo = true;
+
+            async function carregarAlunos() {
+                setAlunos(null);
+                setAlunoSelecionado(null);
+
+                try {
+                    const dados = await AsyncStorage.getItem('alunos');
+                    if (ativo) setAlunos(dados === null ? [] : JSON.parse(dados));
+                } catch (error) {
+                    console.error(error);
+                    if (ativo) {
+                        setMensagemMatricula('Não foi possível carregar os alunos.');
+                    }
+                }
+            }
+
+            void carregarAlunos();
+
+            return () => {
+                ativo = false;
+            };
+        }, []),
+    );
+
+    async function confirmarMatricula() {
+        if (!turmaSelecionada || !alunoSelecionado || matriculaEmAndamento.current) {
+            return;
+        }
+
+        matriculaEmAndamento.current = true;
+        setMatriculando(true);
+        setMensagemMatricula('');
+
+        try {
+            const resultado = await matricularAluno(alunoSelecionado.id, turmaSelecionada.id);
+
+            setMensagemMatricula(
+                resultado === 'ja-matriculado'
+                    ? 'Este aluno já está matriculado nesta turma.'
+                    : `${alunoSelecionado.nome} foi matriculado em ${turmaSelecionada.nome}.`,
+            );
+        } catch (error) {
+            console.error(error);
+            setMensagemMatricula('Não foi possível salvar a matrícula. Tente novamente.');
+        } finally {
+            matriculaEmAndamento.current = false;
+            setMatriculando(false);
+        }
+    }
 
     async function criarTurma() {
         if (turmas === null || gravando.current) return;
@@ -89,9 +156,44 @@ export default function TurmasScreen() {
                 data={turmas ?? []}
                 keyExtractor={(turma) => turma.id}
                 renderItem={({ item }) => (
-                    <Text style={{ paddingVertical: 8 }}>{item.nome}</Text>
+                    <Button
+                        title={turmaSelecionada?.id === item.id ? `Selecionada: ${item.nome}` : item.nome}
+                        disabled={matriculando}
+                        onPress={() => {
+                            setTurmaSelecionada(item);
+                            setMensagemMatricula('');
+                        }}
+                    />
                 )}
             />
+            {turmaSelecionada ? (
+                <>
+                    <Text>Selecione um aluno para {turmaSelecionada.nome}</Text>
+                    <FlatList
+                        data={alunos ?? []}
+                        keyExtractor={(aluno) => aluno.id}
+                        ListEmptyComponent={
+                            alunos?.length === 0 ? <Text>Cadastre um aluno primeiro.</Text> : null
+                        }
+                        renderItem={({ item }) => (
+                            <Button
+                                title={alunoSelecionado?.id === item.id ? `Selecionado: ${item.nome}` : item.nome}
+                                disabled={matriculando}
+                                onPress={() => {
+                                    setAlunoSelecionado(item);
+                                    setMensagemMatricula('');
+                                }}
+                            />
+                        )}
+                    />
+                    <Button
+                        title={matriculando ? 'Matriculando…' : 'Confirmar matrícula'}
+                        disabled={alunos === null || !alunoSelecionado || matriculando}
+                        onPress={confirmarMatricula}
+                    />
+                </>
+            ) : null}
+            {mensagemMatricula ? <Text accessibilityLiveRegion="polite">{mensagemMatricula}</Text> : null}
         </View>
     );
 }
