@@ -4,12 +4,13 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 type Aluno = {
@@ -25,8 +26,37 @@ export default function HomeScreen() {
   const [salvando, setSalvando] = useState(false);
   const gravacaoEmAndamento = useRef(false);
 
-  const dataHoje = getDataHoje();
+  const [dataHoje, setDataHoje] = useState(() => getDataHoje());
   const presentesHoje = presencas?.[dataHoje] ?? [];
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    function atualizarDia() {
+      clearTimeout(timer);
+
+      const agora = new Date();
+      setDataHoje(getDataHoje(agora));
+
+      const proximaMeiaNoite = new Date(agora);
+      proximaMeiaNoite.setHours(24, 0, 0, 0);
+      timer = setTimeout(
+        atualizarDia,
+        proximaMeiaNoite.getTime() - agora.getTime(),
+      );
+    }
+
+    atualizarDia();
+
+    const subscription = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') atualizarDia();
+    });
+
+    return () => {
+      clearTimeout(timer);
+      subscription.remove();
+    };
+  }, []);
 
   const router = useRouter();
 
@@ -90,11 +120,18 @@ export default function HomeScreen() {
   async function marcarPresenca(id: string) {
     if (presencas === null || gravacaoEmAndamento.current) return;
 
-    const listaHoje = presentesHoje.includes(id)
-      ? presentesHoje.filter((presenteId) => presenteId !== id)
-      : [...presentesHoje, id];
+    const dataDaMarcacao = getDataHoje();
+    setDataHoje(dataDaMarcacao);
 
-    const atualizadas = { ...presencas, [dataHoje]: listaHoje };
+    const listaDoDia = presencas[dataDaMarcacao] ?? [];
+    const listaAtualizada = listaDoDia.includes(id)
+      ? listaDoDia.filter((presenteId) => presenteId !== id)
+      : [...listaDoDia, id];
+
+    const atualizadas = {
+      ...presencas,
+      [dataDaMarcacao]: listaAtualizada,
+    };
 
     gravacaoEmAndamento.current = true;
     setSalvando(true);
@@ -111,9 +148,12 @@ export default function HomeScreen() {
     }
   }
 
-  function getDataHoje() {
-    const hoje = new Date();
-    return hoje.toISOString().split('T')[0];
+  function getDataHoje(hoje = new Date()) {
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+
+    return `${ano}-${mes}-${dia}`;
   }
 
   const presentes = presentesHoje.length;
