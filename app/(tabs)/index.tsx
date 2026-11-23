@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
+  Button,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -13,12 +14,21 @@ import {
   View
 } from 'react-native';
 
+import { listarMatriculas } from '@/storage/matriculas';
+
 type Aluno = {
   id: string;
   nome: string;
   pai: string;
   mae: string;
 };
+
+type Turma = {
+  id: string;
+  nome: string;
+};
+
+const CHAVE_PRESENCAS_POR_TURMA = 'presencasPorTurma';
 
 export default function HomeScreen() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
@@ -27,7 +37,26 @@ export default function HomeScreen() {
   const gravacaoEmAndamento = useRef(false);
 
   const [dataHoje, setDataHoje] = useState(() => getDataHoje());
-  const presentesHoje = presencas?.[dataHoje] ?? [];
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmaId, setTurmaId] = useState<string | null>(null);
+  const [matriculas, setMatriculas] = useState<
+    Awaited<ReturnType<typeof listarMatriculas>>
+  >([]);
+
+  const turmaSelecionada = turmas.find((turma) => turma.id === turmaId);
+  const alunosDaTurma = turmaSelecionada
+    ? alunos.filter((aluno) =>
+      matriculas.some(
+        (matricula) =>
+          matricula.turmaId === turmaSelecionada.id &&
+          matricula.alunoId === aluno.id,
+      ),
+    )
+    : [];
+
+  const presentesHoje = turmaSelecionada
+    ? presencas?.[`${turmaSelecionada.id}:${dataHoje}`] ?? []
+    : [];
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -66,16 +95,21 @@ export default function HomeScreen() {
 
       async function carregarAlunos() {
         try {
-          const dados = await AsyncStorage.getItem('alunos');
+          const [dadosAlunos, dadosTurmas, matriculasSalvas] = await Promise.all([
+            AsyncStorage.getItem('alunos'),
+            AsyncStorage.getItem('turmas'),
+            listarMatriculas(),
+          ]);
 
           if (ativo) {
-            setAlunos(dados === null ? [] : JSON.parse(dados));
+            setAlunos(dadosAlunos === null ? [] : JSON.parse(dadosAlunos));
+            setTurmas(dadosTurmas === null ? [] : JSON.parse(dadosTurmas));
+            setMatriculas(matriculasSalvas);
           }
         } catch (error) {
           console.error(error);
-
           if (ativo) {
-            Alert.alert('Erro', 'Não foi possível carregar os alunos.');
+            Alert.alert('Erro', 'Não foi possível carregar as turmas e os alunos.');
           }
         }
       }
@@ -93,7 +127,7 @@ export default function HomeScreen() {
 
     async function carregarPresencas() {
       try {
-        const dados = await AsyncStorage.getItem('presencas');
+        const dados = await AsyncStorage.getItem(CHAVE_PRESENCAS_POR_TURMA);
 
         if (ativo) {
           setPresencas(dados === null ? {} : JSON.parse(dados));
@@ -118,26 +152,33 @@ export default function HomeScreen() {
   }, []);
 
   async function marcarPresenca(id: string) {
-    if (presencas === null || gravacaoEmAndamento.current) return;
+    if (!turmaSelecionada || presencas === null || gravacaoEmAndamento.current) {
+      return;
+    }
 
     const dataDaMarcacao = getDataHoje();
     setDataHoje(dataDaMarcacao);
 
-    const listaDoDia = presencas[dataDaMarcacao] ?? [];
+    const chaveDaChamada = `${turmaSelecionada.id}:${dataDaMarcacao}`;
+    const listaDoDia = presencas[chaveDaChamada] ?? [];
+
     const listaAtualizada = listaDoDia.includes(id)
       ? listaDoDia.filter((presenteId) => presenteId !== id)
       : [...listaDoDia, id];
 
     const atualizadas = {
       ...presencas,
-      [dataDaMarcacao]: listaAtualizada,
+      [chaveDaChamada]: listaAtualizada,
     };
 
     gravacaoEmAndamento.current = true;
     setSalvando(true);
 
     try {
-      await AsyncStorage.setItem('presencas', JSON.stringify(atualizadas));
+      await AsyncStorage.setItem(
+        CHAVE_PRESENCAS_POR_TURMA,
+        JSON.stringify(atualizadas),
+      );
       setPresencas(atualizadas);
     } catch (error) {
       console.error(error);
@@ -156,7 +197,7 @@ export default function HomeScreen() {
     return `${ano}-${mes}-${dia}`;
   }
 
-  const presentes = presentesHoje.length;
+  const presentes = alunosDaTurma.filter((aluno) => presentesHoje.includes(aluno.id)).length;
 
   return (
     <KeyboardAvoidingView
@@ -165,6 +206,15 @@ export default function HomeScreen() {
     >
       <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
 
+        <Text>Selecione a turma da chamada</Text>
+        {turmas.map((turma) => (
+          <Button
+            key={turma.id}
+            title={turma.id === turmaId ? `Selecionada: ${turma.nome}` : turma.nome}
+            onPress={() => setTurmaId(turma.id)}
+          />
+        ))}
+
         {/* CONTADOR */}
         <Text style={{ marginTop: 20, fontSize: 16 }}>
           👥 Presentes: {presentes}
@@ -172,7 +222,7 @@ export default function HomeScreen() {
 
         {/* LISTA */}
         <FlatList
-          data={alunos}
+          data={alunosDaTurma}
           keyExtractor={item => item.id}
           renderItem={({ item }) => {
             const estaPresente = presentesHoje.includes(item.id);

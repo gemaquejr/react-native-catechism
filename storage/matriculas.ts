@@ -7,6 +7,11 @@ type Matricula = {
 
 const CHAVE_MATRICULAS = 'matriculas';
 
+export async function listarMatriculas(): Promise<Matricula[]> {
+    const dados = await AsyncStorage.getItem(CHAVE_MATRICULAS);
+    return dados === null ? [] : JSON.parse(dados);
+}
+
 let filaDeGravacao: Promise<unknown> = Promise.resolve();
 
 export async function matricularAluno(
@@ -14,8 +19,7 @@ export async function matricularAluno(
     turmaId: string,
 ): Promise<'criada' | 'ja-matriculado'> {
     const operacao = filaDeGravacao.then(async () => {
-        const dados = await AsyncStorage.getItem(CHAVE_MATRICULAS);
-        const matriculas: Matricula[] = dados === null ? [] : JSON.parse(dados);
+        const matriculas = await listarMatriculas();
 
         const jaMatriculado = matriculas.some(
             (matricula) =>
