@@ -15,6 +15,7 @@ import {
 
 import { listarEncontros } from '@/storage/encontros';
 import { listarMatriculas } from '@/storage/matriculas';
+import { horariosSeSobrepoem } from '@/utils/horarios';
 
 type Aluno = {
   id: string;
@@ -45,6 +46,7 @@ export default function HomeScreen() {
   const [matriculas, setMatriculas] = useState<
     Awaited<ReturnType<typeof listarMatriculas>>
   >([]);
+  const [mensagemPresenca, setMensagemPresenca] = useState('');
 
   const turmaSelecionada = turmas.find((turma) => turma.id === turmaId);
   const alunosDaTurma = turmaSelecionada
@@ -141,7 +143,33 @@ export default function HomeScreen() {
     const chaveDaChamada = encontroSelecionado.id;
     const listaDoDia = presencas[chaveDaChamada] ?? [];
 
-    const listaAtualizada = listaDoDia.includes(id)
+    setMensagemPresenca('');
+
+    const jaEstaPresente = listaDoDia.includes(id);
+
+    if (!jaEstaPresente) {
+      const encontroEmConflito = encontros.find(
+        (outroEncontro) =>
+          outroEncontro.turmaId !== encontroSelecionado.turmaId &&
+          outroEncontro.data === encontroSelecionado.data &&
+          presencas[outroEncontro.id]?.includes(id) &&
+          horariosSeSobrepoem(outroEncontro, encontroSelecionado),
+      );
+
+      if (encontroEmConflito) {
+        const outraTurma = turmas.find(
+          (turma) => turma.id === encontroEmConflito.turmaId,
+        );
+        const nomeTurma = outraTurma?.nome ?? 'outra turma';
+
+        setMensagemPresenca(
+          `O aluno já está presente em um encontro de ${nomeTurma} com horário sobreposto.`,
+        );
+        return;
+      }
+    }
+
+    const listaAtualizada = jaEstaPresente
       ? listaDoDia.filter((presenteId) => presenteId !== id)
       : [...listaDoDia, id];
 
@@ -185,6 +213,7 @@ export default function HomeScreen() {
             onPress={() => {
               setTurmaId(turma.id);
               setEncontroId(null);
+              setMensagemPresenca('');
             }}
           />
         ))}
@@ -203,10 +232,19 @@ export default function HomeScreen() {
             <Button
               key={encontro.id}
               title={encontro.id === encontroId ? `Selecionado: ${titulo}` : titulo}
-              onPress={() => setEncontroId(encontro.id)}
+              onPress={() => {
+                setEncontroId(encontro.id);
+                setMensagemPresenca('');
+              }}
             />
           );
         })}
+
+        {mensagemPresenca ? (
+          <Text accessibilityLiveRegion="polite" style={{ color: '#b91c1c' }}>
+            {mensagemPresenca}
+          </Text>
+        ) : null}
 
         {/* CONTADOR */}
         <Text style={{ marginTop: 20, fontSize: 16 }}>
