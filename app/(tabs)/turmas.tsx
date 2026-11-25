@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, FlatList, Text, TextInput, View } from 'react-native';
 
+import { criarEncontro } from '@/storage/encontros';
 import { matricularAluno } from '@/storage/matriculas';
 
 type Turma = {
@@ -14,6 +15,17 @@ type AlunoParaMatricula = {
     id: string;
     nome: string;
 };
+
+function horarioEmMinutos(valor: string): number | null {
+    const horario = valor.trim();
+
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(horario)) {
+        return null;
+    }
+
+    const [hora, minuto] = horario.split(':').map(Number);
+    return hora * 60 + minuto;
+}
 
 export default function TurmasScreen() {
     const [turmas, setTurmas] = useState<Turma[] | null>(null);
@@ -27,6 +39,12 @@ export default function TurmasScreen() {
     const [matriculando, setMatriculando] = useState(false);
     const [mensagemMatricula, setMensagemMatricula] = useState('');
     const matriculaEmAndamento = useRef(false);
+    const [dataEncontro, setDataEncontro] = useState('');
+    const [inicioEncontro, setInicioEncontro] = useState('');
+    const [fimEncontro, setFimEncontro] = useState('');
+    const [mensagemEncontro, setMensagemEncontro] = useState('');
+    const [salvandoEncontro, setSalvandoEncontro] = useState(false);
+    const encontroEmGravacao = useRef(false);
 
     useEffect(() => {
         let ativo = true;
@@ -78,6 +96,45 @@ export default function TurmasScreen() {
             };
         }, []),
     );
+
+    async function salvarEncontro() {
+        if (!turmaSelecionada || encontroEmGravacao.current) return;
+
+        const inicioEmMinutos = horarioEmMinutos(inicioEncontro);
+        const fimEmMinutos = horarioEmMinutos(fimEncontro);
+
+        if (inicioEmMinutos === null || fimEmMinutos === null) {
+            setMensagemEncontro('Informe o início e o fim no formato HH:mm.');
+            return;
+        }
+
+        encontroEmGravacao.current = true;
+        setSalvandoEncontro(true);
+        setMensagemEncontro('');
+
+        try {
+            await criarEncontro({
+                turmaId: turmaSelecionada.id,
+                data: dataEncontro.trim(),
+                inicioEmMinutos,
+                fimEmMinutos,
+            });
+
+            setMensagemEncontro(`Encontro registrado em ${turmaSelecionada.nome}.`);
+            setDataEncontro('');
+            setInicioEncontro('');
+            setFimEncontro('');
+        } catch (error) {
+            setMensagemEncontro(
+                error instanceof Error
+                    ? error.message
+                    : 'Não foi possível salvar o encontro.',
+            );
+        } finally {
+            encontroEmGravacao.current = false;
+            setSalvandoEncontro(false);
+        }
+    }
 
     async function confirmarMatricula() {
         if (!turmaSelecionada || !alunoSelecionado || matriculaEmAndamento.current) {
@@ -158,14 +215,53 @@ export default function TurmasScreen() {
                 renderItem={({ item }) => (
                     <Button
                         title={turmaSelecionada?.id === item.id ? `Selecionada: ${item.nome}` : item.nome}
-                        disabled={matriculando}
+                        disabled={matriculando || salvandoEncontro}
                         onPress={() => {
                             setTurmaSelecionada(item);
                             setMensagemMatricula('');
+                            setMensagemEncontro('')
                         }}
                     />
                 )}
             />
+
+            {
+                turmaSelecionada ? (
+                    <View style={{ gap: 8 }}>
+                        <Text>Novo encontro em {turmaSelecionada.nome}</Text>
+                        <TextInput
+                            accessibilityLabel="Data do encontro"
+                            placeholder="Data (AAAA-MM-DD)"
+                            value={dataEncontro}
+                            onChangeText={setDataEncontro}
+                            editable={!salvandoEncontro}
+                        />
+                        <TextInput
+                            accessibilityLabel="Horário de início"
+                            placeholder="Início (HH:mm)"
+                            value={inicioEncontro}
+                            onChangeText={setInicioEncontro}
+                            editable={!salvandoEncontro}
+                        />
+                        <TextInput
+                            accessibilityLabel="Horário de fim"
+                            placeholder="Fim (HH:mm)"
+                            value={fimEncontro}
+                            onChangeText={setFimEncontro}
+                            editable={!salvandoEncontro}
+                        />
+                        <Button
+                            title={salvandoEncontro ? 'Salvando…' : 'Salvar encontro'}
+                            disabled={salvandoEncontro}
+                            onPress={salvarEncontro}
+                        />
+                        {mensagemEncontro ? (
+                            <Text accessibilityLiveRegion="polite">{mensagemEncontro}</Text>
+                        ) : null}
+                    </View>
+                ) : null
+            }
+
             {turmaSelecionada ? (
                 <>
                     <Text>Selecione um aluno para {turmaSelecionada.nome}</Text>
@@ -178,7 +274,7 @@ export default function TurmasScreen() {
                         renderItem={({ item }) => (
                             <Button
                                 title={alunoSelecionado?.id === item.id ? `Selecionado: ${item.nome}` : item.nome}
-                                disabled={matriculando}
+                                disabled={matriculando || salvandoEncontro}
                                 onPress={() => {
                                     setAlunoSelecionado(item);
                                     setMensagemMatricula('');
