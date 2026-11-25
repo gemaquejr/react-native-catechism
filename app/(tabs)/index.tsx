@@ -4,7 +4,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  AppState,
   Button,
   FlatList,
   KeyboardAvoidingView,
@@ -14,6 +13,7 @@ import {
   View
 } from 'react-native';
 
+import { listarEncontros } from '@/storage/encontros';
 import { listarMatriculas } from '@/storage/matriculas';
 
 type Aluno = {
@@ -28,7 +28,7 @@ type Turma = {
   nome: string;
 };
 
-const CHAVE_PRESENCAS_POR_TURMA = 'presencasPorTurma';
+const CHAVE_PRESENCAS_POR_ENCONTRO = 'presencasPorEncontro';
 
 export default function HomeScreen() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
@@ -36,7 +36,10 @@ export default function HomeScreen() {
   const [salvando, setSalvando] = useState(false);
   const gravacaoEmAndamento = useRef(false);
 
-  const [dataHoje, setDataHoje] = useState(() => getDataHoje());
+  const [encontros, setEncontros] = useState<
+    Awaited<ReturnType<typeof listarEncontros>>
+  >([]);
+  const [encontroId, setEncontroId] = useState<string | null>(null);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [turmaId, setTurmaId] = useState<string | null>(null);
   const [matriculas, setMatriculas] = useState<
@@ -54,38 +57,15 @@ export default function HomeScreen() {
     )
     : [];
 
-  const presentesHoje = turmaSelecionada
-    ? presencas?.[`${turmaSelecionada.id}:${dataHoje}`] ?? []
+  const encontrosDaTurma = encontros.filter(
+    (encontro) => encontro.turmaId === turmaSelecionada?.id,
+  );
+  const encontroSelecionado = encontrosDaTurma.find(
+    (encontro) => encontro.id === encontroId,
+  );
+  const presentesNoEncontro = encontroSelecionado
+    ? presencas?.[encontroSelecionado.id] ?? []
     : [];
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-
-    function atualizarDia() {
-      clearTimeout(timer);
-
-      const agora = new Date();
-      setDataHoje(getDataHoje(agora));
-
-      const proximaMeiaNoite = new Date(agora);
-      proximaMeiaNoite.setHours(24, 0, 0, 0);
-      timer = setTimeout(
-        atualizarDia,
-        proximaMeiaNoite.getTime() - agora.getTime(),
-      );
-    }
-
-    atualizarDia();
-
-    const subscription = AppState.addEventListener('change', (estado) => {
-      if (estado === 'active') atualizarDia();
-    });
-
-    return () => {
-      clearTimeout(timer);
-      subscription.remove();
-    };
-  }, []);
 
   const router = useRouter();
 
@@ -95,16 +75,18 @@ export default function HomeScreen() {
 
       async function carregarAlunos() {
         try {
-          const [dadosAlunos, dadosTurmas, matriculasSalvas] = await Promise.all([
+          const [dadosAlunos, dadosTurmas, matriculasSalvas, encontrosSalvos] = await Promise.all([
             AsyncStorage.getItem('alunos'),
             AsyncStorage.getItem('turmas'),
             listarMatriculas(),
+            listarEncontros(),
           ]);
 
           if (ativo) {
             setAlunos(dadosAlunos === null ? [] : JSON.parse(dadosAlunos));
             setTurmas(dadosTurmas === null ? [] : JSON.parse(dadosTurmas));
             setMatriculas(matriculasSalvas);
+            setEncontros(encontrosSalvos);
           }
         } catch (error) {
           console.error(error);
@@ -127,7 +109,7 @@ export default function HomeScreen() {
 
     async function carregarPresencas() {
       try {
-        const dados = await AsyncStorage.getItem(CHAVE_PRESENCAS_POR_TURMA);
+        const dados = await AsyncStorage.getItem(CHAVE_PRESENCAS_POR_ENCONTRO);
 
         if (ativo) {
           setPresencas(dados === null ? {} : JSON.parse(dados));
@@ -152,14 +134,11 @@ export default function HomeScreen() {
   }, []);
 
   async function marcarPresenca(id: string) {
-    if (!turmaSelecionada || presencas === null || gravacaoEmAndamento.current) {
+    if (!encontroSelecionado || presencas === null || gravacaoEmAndamento.current) {
       return;
     }
 
-    const dataDaMarcacao = getDataHoje();
-    setDataHoje(dataDaMarcacao);
-
-    const chaveDaChamada = `${turmaSelecionada.id}:${dataDaMarcacao}`;
+    const chaveDaChamada = encontroSelecionado.id;
     const listaDoDia = presencas[chaveDaChamada] ?? [];
 
     const listaAtualizada = listaDoDia.includes(id)
@@ -176,7 +155,7 @@ export default function HomeScreen() {
 
     try {
       await AsyncStorage.setItem(
-        CHAVE_PRESENCAS_POR_TURMA,
+        CHAVE_PRESENCAS_POR_ENCONTRO,
         JSON.stringify(atualizadas),
       );
       setPresencas(atualizadas);
@@ -189,15 +168,7 @@ export default function HomeScreen() {
     }
   }
 
-  function getDataHoje(hoje = new Date()) {
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoje.getDate()).padStart(2, '0');
-
-    return `${ano}-${mes}-${dia}`;
-  }
-
-  const presentes = alunosDaTurma.filter((aluno) => presentesHoje.includes(aluno.id)).length;
+  const presentes = alunosDaTurma.filter((aluno) => presentesNoEncontro.includes(aluno.id)).length;
 
   return (
     <KeyboardAvoidingView
@@ -211,9 +182,31 @@ export default function HomeScreen() {
           <Button
             key={turma.id}
             title={turma.id === turmaId ? `Selecionada: ${turma.nome}` : turma.nome}
-            onPress={() => setTurmaId(turma.id)}
+            onPress={() => {
+              setTurmaId(turma.id);
+              setEncontroId(null);
+            }}
           />
         ))}
+
+        {turmaSelecionada && encontrosDaTurma.length === 0 ? (
+          <Text>Nenhum encontro cadastrado para esta turma.</Text>
+        ) : null}
+
+        {encontrosDaTurma.map((encontro) => {
+          const horario = (minutos: number) =>
+            `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+
+          const titulo = `${encontro.data} · ${horario(encontro.inicioEmMinutos)}–${horario(encontro.fimEmMinutos)}`;
+
+          return (
+            <Button
+              key={encontro.id}
+              title={encontro.id === encontroId ? `Selecionado: ${titulo}` : titulo}
+              onPress={() => setEncontroId(encontro.id)}
+            />
+          );
+        })}
 
         {/* CONTADOR */}
         <Text style={{ marginTop: 20, fontSize: 16 }}>
@@ -225,11 +218,11 @@ export default function HomeScreen() {
           data={alunosDaTurma}
           keyExtractor={item => item.id}
           renderItem={({ item }) => {
-            const estaPresente = presentesHoje.includes(item.id);
+            const estaPresente = presentesNoEncontro.includes(item.id);
 
             return (
               <TouchableOpacity
-                disabled={presencas === null || salvando}
+                disabled={!encontroSelecionado || presencas === null || salvando}
                 onPress={() => marcarPresenca(item.id)}
               >
                 <View style={{
