@@ -1,24 +1,36 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { SessaoContext } from '@/contexts/SessaoContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { useEffect, useState } from 'react';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [logado, setLogado] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    verificarLogin();
+  }, []);
+
+  async function verificarLogin() {
+    const status = await AsyncStorage.getItem('logado');
+    setLogado(status === 'true');
+  }
+
+  if (logado === null) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <SessaoContext.Provider value={setLogado}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!logado}>
+          <Stack.Screen name="login" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={logado}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="modal" />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
-    </ThemeProvider>
+    </SessaoContext.Provider>
   );
 }

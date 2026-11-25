@@ -36,6 +36,7 @@ export default function HomeScreen() {
   const [presencas, setPresencas] = useState<Record<string, string[]> | null>(null);
   const [salvando, setSalvando] = useState(false);
   const gravacaoEmAndamento = useRef(false);
+  const [usuario, setUsuario] = useState('');
 
   const [encontros, setEncontros] = useState<
     Awaited<ReturnType<typeof listarEncontros>>
@@ -128,7 +129,20 @@ export default function HomeScreen() {
       }
     }
 
+    async function carregarUsuario() {
+      try {
+        const nome = await AsyncStorage.getItem('usuario');
+
+        if (ativo) {
+          setUsuario(nome ?? '');
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     void carregarPresencas();
+    void carregarUsuario();
 
     return () => {
       ativo = false;
@@ -204,6 +218,10 @@ export default function HomeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, padding: 20, backgroundColor: '#fff' }}>
+
+        <Text style={{ fontSize: 14, color: '#666' }}>
+          👤 {usuario}
+        </Text>
 
         <Text>Selecione a turma da chamada</Text>
         {turmas.map((turma) => (
