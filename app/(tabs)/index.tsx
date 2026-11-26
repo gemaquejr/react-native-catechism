@@ -13,6 +13,7 @@ import {
   View
 } from 'react-native';
 
+import { supabase } from '@/lib/supabase';
 import { listarEncontros } from '@/storage/encontros';
 import { listarMatriculas } from '@/storage/matriculas';
 import { horariosSeSobrepoem } from '@/utils/horarios';
@@ -131,10 +132,18 @@ export default function HomeScreen() {
 
     async function carregarUsuario() {
       try {
-        const nome = await AsyncStorage.getItem('usuario');
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        const conta = data.session?.user;
+        const nome = conta?.user_metadata?.nome;
 
         if (ativo) {
-          setUsuario(nome ?? '');
+          setUsuario(
+            typeof nome === 'string' && nome.trim()
+              ? nome
+              : conta?.email ?? '',
+          );
         }
       } catch (error) {
         console.error(error);

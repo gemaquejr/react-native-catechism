@@ -1,24 +1,20 @@
-import { useAtualizarSessao } from '@/contexts/SessaoContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
 import { useRef, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
-    const [usuario, setUsuario] = useState('');
+    const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
-    const atualizarSessao = useAtualizarSessao();
     const [mensagem, setMensagem] = useState('');
     const [processando, setProcessando] = useState(false);
     const operacaoEmAndamento = useRef(false);
 
-    async function enviarFormulario(acao: 'entrar' | 'criar-conta') {
+    async function entrar() {
         if (operacaoEmAndamento.current) return;
 
-        const nome = usuario.trim();
-
-        if (!nome || !senha.trim()) {
-            setMensagem('Preencha o usuário e a senha.');
+        if (!email.trim() || !senha.trim()) {
+            setMensagem('Preencha o e-mail e a senha.');
             return;
         }
 
@@ -27,42 +23,20 @@ export default function LoginScreen() {
         setMensagem('');
 
         try {
-            const [[, usuarioSalvo], [, senhaSalva]] = await AsyncStorage.multiGet([
-                'usuario',
-                'senha',
-            ]);
+            const { error } = await supabase.auth.signInWithPassword({
+                email: email.trim(),
+                password: senha,
+            });
 
-            if (acao === 'criar-conta') {
-                if (usuarioSalvo || senhaSalva) {
-                    setMensagem('Já existe uma conta neste dispositivo. Use Entrar.');
-                    return;
-                }
-
-                await AsyncStorage.multiSet([
-                    ['usuario', nome],
-                    ['senha', senha],
-                ]);
-
-                setSenha('');
-                setMensagem('Conta criada. Digite sua senha e toque em Entrar.');
-                return;
+            if (error) {
+                setMensagem(
+                    error.code === 'invalid_credentials'
+                        ? 'E-mail ou senha incorretos.'
+                        : 'Não foi possível entrar. Tente novamente.',
+                );
             }
-
-            if (!usuarioSalvo || !senhaSalva) {
-                setMensagem('Nenhuma conta válida encontrada. Use Criar conta no primeiro acesso.');
-                return;
-            }
-
-            if (nome !== usuarioSalvo || senha !== senhaSalva) {
-                setMensagem('Usuário ou senha incorretos.');
-                return;
-            }
-
-            await AsyncStorage.setItem('logado', 'true');
-            atualizarSessao(true);
-        } catch (error) {
-            console.error(error);
-            setMensagem('Não foi possível concluir a operação. Tente novamente.');
+        } catch {
+            setMensagem('Não foi possível entrar. Verifique a conexão e tente novamente.');
         } finally {
             operacaoEmAndamento.current = false;
             setProcessando(false);
@@ -76,9 +50,9 @@ export default function LoginScreen() {
             </Text>
 
             <TextInput
-                placeholder="Usuário"
-                value={usuario}
-                onChangeText={setUsuario}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
                 style={input}
             />
 
@@ -98,18 +72,10 @@ export default function LoginScreen() {
 
             <TouchableOpacity
                 disabled={processando}
-                onPress={() => enviarFormulario('entrar')}
+                onPress={() => { entrar() }}
                 style={botao}
             >
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Entrar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-                disabled={processando}
-                onPress={() => enviarFormulario('criar-conta')}
-                style={[botao, { marginTop: 8 }]}
-            >
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Criar conta</Text>
             </TouchableOpacity>
         </View>
     );

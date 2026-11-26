@@ -1,15 +1,22 @@
-import { useAtualizarSessao } from '@/contexts/SessaoContext';
+import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Tabs } from 'expo-router';
+import { useState } from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 
 export default function TabLayout() {
-  const atualizarSessao = useAtualizarSessao();
+  const [erroSaida, setErroSaida] = useState('');
 
   async function logout() {
-    await AsyncStorage.setItem('logado', 'false');
-    atualizarSessao(false);
+    setErroSaida('');
+
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+
+      if (error) throw error;
+    } catch {
+      setErroSaida('Não foi possível sair. Tente novamente.');
+    }
   }
 
   return (
@@ -17,7 +24,7 @@ export default function TabLayout() {
       screenOptions={{
         headerRight: () => (
           <TouchableOpacity onPress={logout} style={{ marginRight: 15 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Sair</Text>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>{erroSaida || 'Sair'}</Text>
           </TouchableOpacity>
         ),
         headerStyle: { backgroundColor: '#007bff' },

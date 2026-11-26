@@ -1,25 +1,28 @@
-import { SessaoContext } from '@/contexts/SessaoContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
+import type { Session } from '@supabase/supabase-js';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 export default function RootLayout() {
-  const [logado, setLogado] = useState<boolean | null>(null);
+  const [sessao, setSessao] = useState<Session | null | undefined>(undefined);
 
   useEffect(() => {
-    verificarLogin();
+    const { data } = supabase.auth.onAuthStateChange((_evento, novaSessao) => {
+      setSessao(novaSessao);
+    });
+
+    return () => data.subscription.unsubscribe();
   }, []);
 
-  async function verificarLogin() {
-    const status = await AsyncStorage.getItem('logado');
-    setLogado(status === 'true');
-  }
+  if (sessao === undefined) return null;
+
+  const logado = sessao !== null;
 
   if (logado === null) return null;
 
   return (
-    <SessaoContext.Provider value={setLogado}>
+    <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!logado}>
           <Stack.Screen name="login" />
@@ -31,6 +34,6 @@ export default function RootLayout() {
         </Stack.Protected>
       </Stack>
       <StatusBar style="auto" />
-    </SessaoContext.Provider>
+    </>
   );
 }
