@@ -48,6 +48,61 @@ export default function TurmasScreen() {
     const encontroEmGravacao = useRef(false);
     const [turmasCompartilhadas, setTurmasCompartilhadas] = useState<Turma[] | null>(null);
     const [erroTurmasCompartilhadas, setErroTurmasCompartilhadas] = useState('');
+    const [turmaCompartilhadaId, setTurmaCompartilhadaId] = useState<string | null>(null);
+    const [alunosCompartilhados, setAlunosCompartilhados] =
+        useState<AlunoParaMatricula[] | null>(null);
+    const [erroAlunosCompartilhados, setErroAlunosCompartilhados] = useState('');
+
+    useFocusEffect(
+        useCallback(() => {
+            if (turmaCompartilhadaId === null) return;
+
+            const turmaId = turmaCompartilhadaId;
+            let ativo = true;
+
+            setAlunosCompartilhados(null);
+            setErroAlunosCompartilhados('');
+
+            async function carregarAlunosCompartilhados() {
+                try {
+                    const { data: matriculas, error: erroMatriculas } = await supabase
+                        .from('matriculas')
+                        .select('aluno_id')
+                        .eq('turma_id', turmaId);
+
+                    if (erroMatriculas) throw erroMatriculas;
+                    if (!ativo) return;
+
+                    const ids = (matriculas ?? []).map((matricula) => matricula.aluno_id);
+
+                    if (ids.length === 0) {
+                        setAlunosCompartilhados([]);
+                        return;
+                    }
+
+                    const { data, error } = await supabase
+                        .from('alunos')
+                        .select('id, nome')
+                        .in('id', ids)
+                        .order('nome');
+
+                    if (error) throw error;
+                    if (ativo) setAlunosCompartilhados(data ?? []);
+                } catch (error) {
+                    console.error(error);
+                    if (ativo) {
+                        setErroAlunosCompartilhados('Não foi possível carregar os alunos da turma.');
+                    }
+                }
+            }
+
+            void carregarAlunosCompartilhados();
+
+            return () => {
+                ativo = false;
+            };
+        }, [turmaCompartilhadaId]),
+    );
 
     useEffect(() => {
         let ativo = true;
@@ -241,9 +296,31 @@ export default function TurmasScreen() {
                     <Text>Sua conta ainda não está vinculada a nenhuma turma.</Text>
                 ) : (
                     turmasCompartilhadas.map((turma) => (
-                        <Text key={turma.id}>{turma.nome}</Text>
+                        <Button
+                            key={turma.id}
+                            title={turma.nome}
+                            onPress={() => setTurmaCompartilhadaId(turma.id)}
+                        />
                     ))
+
                 )}
+                {turmaCompartilhadaId !== null ? (
+                    <View style={{ gap: 4 }}>
+                        <Text style={{ fontWeight: 'bold' }}>Alunos da turma selecionada</Text>
+
+                        {erroAlunosCompartilhados ? (
+                            <Text>{erroAlunosCompartilhados}</Text>
+                        ) : alunosCompartilhados === null ? (
+                            <Text>Carregando alunos…</Text>
+                        ) : alunosCompartilhados.length === 0 ? (
+                            <Text>Nenhum aluno matriculado nesta turma.</Text>
+                        ) : (
+                            alunosCompartilhados.map((aluno) => (
+                                <Text key={aluno.id}>{aluno.nome}</Text>
+                            ))
+                        )}
+                    </View>
+                ) : null}
             </View>
             <TextInput
                 accessibilityLabel="Nome da turma"
