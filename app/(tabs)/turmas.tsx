@@ -52,6 +52,10 @@ export default function TurmasScreen() {
     const [alunosCompartilhados, setAlunosCompartilhados] =
         useState<AlunoParaMatricula[] | null>(null);
     const [erroAlunosCompartilhados, setErroAlunosCompartilhados] = useState('');
+    const [nomeTurmaCompartilhada, setNomeTurmaCompartilhada] = useState('');
+    const [salvandoTurmaCompartilhada, setSalvandoTurmaCompartilhada] = useState(false);
+    const [mensagemCriacaoTurma, setMensagemCriacaoTurma] = useState('');
+    const criandoTurmaCompartilhada = useRef(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -283,10 +287,71 @@ export default function TurmasScreen() {
         }
     }
 
+    async function criarTurmaCompartilhada() {
+        if (criandoTurmaCompartilhada.current) return;
+
+        const nome = nomeTurmaCompartilhada.trim();
+
+        if (!nome) {
+            setMensagemCriacaoTurma('Informe o nome da turma.');
+            return;
+        }
+
+        criandoTurmaCompartilhada.current = true;
+        setSalvandoTurmaCompartilhada(true);
+        setMensagemCriacaoTurma('');
+
+        try {
+            const { data, error } = await supabase
+                .from('turmas')
+                .insert({ nome })
+                .select('id, nome')
+                .single();
+
+            if (error) {
+                setMensagemCriacaoTurma(
+                    error.code === '42501'
+                        ? 'Sua conta não tem permissão para criar turmas.'
+                        : 'Não foi possível criar a turma. Tente novamente.',
+                );
+                return;
+            }
+
+            setTurmasCompartilhadas((atuais) =>
+                [...(atuais ?? []).filter((turma) => turma.id !== data.id), data]
+                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+            );
+            setNomeTurmaCompartilhada('');
+            setMensagemCriacaoTurma('Turma compartilhada criada.');
+        } catch {
+            setMensagemCriacaoTurma('Não foi possível criar a turma. Tente novamente.');
+        } finally {
+            criandoTurmaCompartilhada.current = false;
+            setSalvandoTurmaCompartilhada(false);
+        }
+    }
+
     return (
         <View style={{ flex: 1, padding: 20, gap: 12, backgroundColor: '#fff' }}>
             <View style={{ gap: 4 }}>
                 <Text style={{ fontWeight: 'bold' }}>Turmas compartilhadas</Text>
+
+                <TextInput
+                    accessibilityLabel="Nome da turma compartilhada"
+                    placeholder="Nome da turma compartilhada"
+                    value={nomeTurmaCompartilhada}
+                    onChangeText={setNomeTurmaCompartilhada}
+                    editable={!salvandoTurmaCompartilhada}
+                    style={{ borderWidth: 1, borderColor: '#ddd', padding: 12 }}
+                />
+                <Button
+                    title={salvandoTurmaCompartilhada ? 'Salvando…' : 'Criar turma compartilhada'}
+                    disabled={turmasCompartilhadas === null || salvandoTurmaCompartilhada}
+                    onPress={criarTurmaCompartilhada}
+                />
+                {mensagemCriacaoTurma ? (
+                    <Text accessibilityLiveRegion="polite">{mensagemCriacaoTurma}</Text>
+                ) : null}
 
                 {erroTurmasCompartilhadas ? (
                     <Text>{erroTurmasCompartilhadas}</Text>
