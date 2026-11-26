@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,6 +46,8 @@ export default function TurmasScreen() {
     const [mensagemEncontro, setMensagemEncontro] = useState('');
     const [salvandoEncontro, setSalvandoEncontro] = useState(false);
     const encontroEmGravacao = useRef(false);
+    const [turmasCompartilhadas, setTurmasCompartilhadas] = useState<Turma[] | null>(null);
+    const [erroTurmasCompartilhadas, setErroTurmasCompartilhadas] = useState('');
 
     useEffect(() => {
         let ativo = true;
@@ -136,6 +139,38 @@ export default function TurmasScreen() {
         }
     }
 
+    useFocusEffect(
+        useCallback(() => {
+            let ativo = true;
+
+            setTurmasCompartilhadas(null);
+            setErroTurmasCompartilhadas('');
+
+            async function carregarTurmasCompartilhadas() {
+                try {
+                    const { data, error } = await supabase
+                        .from('turmas')
+                        .select('id, nome')
+                        .order('nome');
+
+                    if (error) throw error;
+                    if (ativo) setTurmasCompartilhadas(data ?? []);
+                } catch (error) {
+                    console.error(error);
+                    if (ativo) {
+                        setErroTurmasCompartilhadas('Não foi possível carregar as turmas compartilhadas.');
+                    }
+                }
+            }
+
+            void carregarTurmasCompartilhadas();
+
+            return () => {
+                ativo = false;
+            };
+        }, []),
+    );
+
     async function confirmarMatricula() {
         if (!turmaSelecionada || !alunoSelecionado || matriculaEmAndamento.current) {
             return;
@@ -195,6 +230,21 @@ export default function TurmasScreen() {
 
     return (
         <View style={{ flex: 1, padding: 20, gap: 12, backgroundColor: '#fff' }}>
+            <View style={{ gap: 4 }}>
+                <Text style={{ fontWeight: 'bold' }}>Turmas compartilhadas</Text>
+
+                {erroTurmasCompartilhadas ? (
+                    <Text>{erroTurmasCompartilhadas}</Text>
+                ) : turmasCompartilhadas === null ? (
+                    <Text>Carregando turmas…</Text>
+                ) : turmasCompartilhadas.length === 0 ? (
+                    <Text>Sua conta ainda não está vinculada a nenhuma turma.</Text>
+                ) : (
+                    turmasCompartilhadas.map((turma) => (
+                        <Text key={turma.id}>{turma.nome}</Text>
+                    ))
+                )}
+            </View>
             <TextInput
                 accessibilityLabel="Nome da turma"
                 placeholder="Nome da turma"
