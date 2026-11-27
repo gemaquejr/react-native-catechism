@@ -43,6 +43,50 @@ export default function LoginScreen() {
         }
     }
 
+    async function solicitarAcesso() {
+        if (operacaoEmAndamento.current) return;
+
+        const emailLimpo = email.trim();
+
+        if (!emailLimpo || !senha.trim()) {
+            setMensagem('Preencha o e-mail e a senha.');
+            return;
+        }
+
+        operacaoEmAndamento.current = true;
+        setProcessando(true);
+        setMensagem('');
+
+        try {
+            const { data, error } = await supabase.auth.signUp({
+                email: emailLimpo,
+                password: senha,
+            });
+
+            if (error) {
+                setMensagem(
+                    error.code === 'signup_disabled'
+                        ? 'As solicitações de acesso ainda não estão abertas.'
+                        : 'Não foi possível solicitar acesso. Confira os dados e tente novamente.',
+                );
+                return;
+            }
+
+            setSenha('');
+
+            if (!data.session) {
+                setMensagem(
+                    'Confira seu e-mail para confirmar a conta. Depois, entre para acompanhar a aprovação.',
+                );
+            }
+        } catch {
+            setMensagem('Não foi possível solicitar acesso. Verifique sua conexão.');
+        } finally {
+            operacaoEmAndamento.current = false;
+            setProcessando(false);
+        }
+    }
+
     return (
         <View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff' }}>
             <Text style={{ fontSize: 24, marginBottom: 20, fontWeight: 'bold' }}>
@@ -76,6 +120,16 @@ export default function LoginScreen() {
                 style={botao}
             >
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Entrar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                disabled={processando}
+                onPress={solicitarAcesso}
+                style={[botao, { marginTop: 8 }]}
+            >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                    Solicitar acesso
+                </Text>
             </TouchableOpacity>
         </View>
     );
