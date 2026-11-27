@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 
 type Matricula = {
     alunoId: string;
@@ -7,19 +7,20 @@ type Matricula = {
 
 const CHAVE_MATRICULAS = 'matriculas';
 
-export async function listarMatriculas(): Promise<Matricula[]> {
-    const dados = await AsyncStorage.getItem(CHAVE_MATRICULAS);
+export async function listarMatriculas(armazenamentoLocal: ArmazenamentoLocal): Promise<Matricula[]> {
+    const dados = await armazenamentoLocal.getItem(CHAVE_MATRICULAS);
     return dados === null ? [] : JSON.parse(dados);
 }
 
 let filaDeGravacao: Promise<unknown> = Promise.resolve();
 
 export async function matricularAluno(
+    armazenamentoLocal: ArmazenamentoLocal,
     alunoId: string,
     turmaId: string,
 ): Promise<'criada' | 'ja-matriculado'> {
     const operacao = filaDeGravacao.then(async () => {
-        const matriculas = await listarMatriculas();
+        const matriculas = await listarMatriculas(armazenamentoLocal);
 
         const jaMatriculado = matriculas.some(
             (matricula) =>
@@ -28,7 +29,7 @@ export async function matricularAluno(
 
         if (jaMatriculado) return 'ja-matriculado' as const;
 
-        await AsyncStorage.setItem(
+        await armazenamentoLocal.setItem(
             CHAVE_MATRICULAS,
             JSON.stringify([...matriculas, { alunoId, turmaId }]),
         );

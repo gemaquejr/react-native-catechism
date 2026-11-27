@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -19,6 +19,7 @@ export default function CadastroScreen() {
     const gravacaoEmAndamento = useRef(false);
 
     const router = useRouter();
+    const armazenamentoLocal = useArmazenamentoLocal();
 
     async function adicionarAluno() {
         if (gravacaoEmAndamento.current) return;
@@ -35,7 +36,7 @@ export default function CadastroScreen() {
         setErro('');
 
         try {
-            const dados = await AsyncStorage.getItem('alunos');
+            const dados = await armazenamentoLocal.getItem('alunos');
             const alunos: Aluno[] = dados === null ? [] : JSON.parse(dados);
             const novoAluno: Aluno = {
                 id: Date.now().toString(),
@@ -44,7 +45,7 @@ export default function CadastroScreen() {
                 mae,
             };
 
-            await AsyncStorage.setItem(
+            await armazenamentoLocal.setItem(
                 'alunos',
                 JSON.stringify([...alunos, novoAluno]),
             );

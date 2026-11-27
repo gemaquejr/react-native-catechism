@@ -1,5 +1,5 @@
+import { useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -72,6 +72,7 @@ export default function HomeScreen() {
     : [];
 
   const router = useRouter();
+  const armazenamentoLocal = useArmazenamentoLocal();
 
   useFocusEffect(
     useCallback(() => {
@@ -80,10 +81,10 @@ export default function HomeScreen() {
       async function carregarAlunos() {
         try {
           const [dadosAlunos, dadosTurmas, matriculasSalvas, encontrosSalvos] = await Promise.all([
-            AsyncStorage.getItem('alunos'),
-            AsyncStorage.getItem('turmas'),
-            listarMatriculas(),
-            listarEncontros(),
+            armazenamentoLocal.getItem('alunos'),
+            armazenamentoLocal.getItem('turmas'),
+            listarMatriculas(armazenamentoLocal),
+            listarEncontros(armazenamentoLocal),
           ]);
 
           if (ativo) {
@@ -105,7 +106,7 @@ export default function HomeScreen() {
       return () => {
         ativo = false;
       };
-    }, []),
+    }, [armazenamentoLocal]),
   );
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function HomeScreen() {
 
     async function carregarPresencas() {
       try {
-        const dados = await AsyncStorage.getItem(CHAVE_PRESENCAS_POR_ENCONTRO);
+        const dados = await armazenamentoLocal.getItem(CHAVE_PRESENCAS_POR_ENCONTRO);
 
         if (ativo) {
           setPresencas(dados === null ? {} : JSON.parse(dados));
@@ -156,7 +157,7 @@ export default function HomeScreen() {
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [armazenamentoLocal]);
 
   async function marcarPresenca(id: string) {
     if (!encontroSelecionado || presencas === null || gravacaoEmAndamento.current) {
@@ -205,7 +206,7 @@ export default function HomeScreen() {
     setSalvando(true);
 
     try {
-      await AsyncStorage.setItem(
+      await armazenamentoLocal.setItem(
         CHAVE_PRESENCAS_POR_ENCONTRO,
         JSON.stringify(atualizadas),
       );

@@ -1,3 +1,4 @@
+import { UsuarioLocalContext } from '@/lib/armazenamentoLocal';
 import { supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { Stack } from 'expo-router';
@@ -115,16 +116,18 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!logado}>
-          <Stack.Screen name="login" />
-        </Stack.Protected>
+      <UsuarioLocalContext.Provider key={usuarioId ?? 'visitante'} value={usuarioId ?? null}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Protected guard={!logado}>
+            <Stack.Screen name="login" />
+          </Stack.Protected>
 
-        <Stack.Protected guard={logado}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="modal" />
-        </Stack.Protected>
-      </Stack>
+          <Stack.Protected guard={logado}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="modal" />
+          </Stack.Protected>
+        </Stack>
+      </UsuarioLocalContext.Provider>
       <StatusBar style="auto" />
     </>
   );

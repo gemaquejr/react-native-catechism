@@ -1,5 +1,5 @@
+import { useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, FlatList, Text, TextInput, View } from 'react-native';
@@ -57,6 +57,8 @@ export default function TurmasScreen() {
     const [mensagemCriacaoTurma, setMensagemCriacaoTurma] = useState('');
     const criandoTurmaCompartilhada = useRef(false);
 
+    const armazenamentoLocal = useArmazenamentoLocal();
+
     useFocusEffect(
         useCallback(() => {
             if (turmaCompartilhadaId === null) return;
@@ -113,7 +115,7 @@ export default function TurmasScreen() {
 
         async function carregarTurmas() {
             try {
-                const dados = await AsyncStorage.getItem('turmas');
+                const dados = await armazenamentoLocal.getItem('turmas');
 
                 if (ativo) {
                     setTurmas(dados === null ? [] : JSON.parse(dados));
@@ -130,7 +132,7 @@ export default function TurmasScreen() {
         return () => {
             ativo = false;
         };
-    }, []);
+    }, [armazenamentoLocal]);
 
     useFocusEffect(
         useCallback(() => {
@@ -141,7 +143,7 @@ export default function TurmasScreen() {
                 setAlunoSelecionado(null);
 
                 try {
-                    const dados = await AsyncStorage.getItem('alunos');
+                    const dados = await armazenamentoLocal.getItem('alunos');
                     if (ativo) setAlunos(dados === null ? [] : JSON.parse(dados));
                 } catch (error) {
                     console.error(error);
@@ -156,7 +158,7 @@ export default function TurmasScreen() {
             return () => {
                 ativo = false;
             };
-        }, []),
+        }, [armazenamentoLocal]),
     );
 
     async function salvarEncontro() {
@@ -175,7 +177,7 @@ export default function TurmasScreen() {
         setMensagemEncontro('');
 
         try {
-            await criarEncontro({
+            await criarEncontro(armazenamentoLocal, {
                 turmaId: turmaSelecionada.id,
                 data: dataEncontro.trim(),
                 inicioEmMinutos,
@@ -240,7 +242,7 @@ export default function TurmasScreen() {
         setMensagemMatricula('');
 
         try {
-            const resultado = await matricularAluno(alunoSelecionado.id, turmaSelecionada.id);
+            const resultado = await matricularAluno(armazenamentoLocal, alunoSelecionado.id, turmaSelecionada.id);
 
             setMensagemMatricula(
                 resultado === 'ja-matriculado'
@@ -276,7 +278,7 @@ export default function TurmasScreen() {
         ];
 
         try {
-            await AsyncStorage.setItem('turmas', JSON.stringify(atualizadas));
+            await armazenamentoLocal.setItem('turmas', JSON.stringify(atualizadas));
             setTurmas(atualizadas);
             setNome('');
         } catch {

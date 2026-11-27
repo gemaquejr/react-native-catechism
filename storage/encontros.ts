@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 
 export type NovoEncontro = {
     turmaId: string;
@@ -13,12 +13,17 @@ const CHAVE_ENCONTROS = 'encontros';
 
 let filaDeGravacao: Promise<unknown> = Promise.resolve();
 
-export async function listarEncontros(): Promise<Encontro[]> {
-    const dados = await AsyncStorage.getItem(CHAVE_ENCONTROS);
+export async function listarEncontros(
+    armazenamentoLocal: ArmazenamentoLocal,
+): Promise<Encontro[]> {
+    const dados = await armazenamentoLocal.getItem(CHAVE_ENCONTROS);
     return dados === null ? [] : JSON.parse(dados);
 }
 
-export async function criarEncontro(novo: NovoEncontro): Promise<Encontro> {
+export async function criarEncontro(
+    armazenamentoLocal: ArmazenamentoLocal,
+    novo: NovoEncontro,
+): Promise<Encontro> {
     const { turmaId, data, inicioEmMinutos, fimEmMinutos } = novo;
     const dia = new Date(`${data}T00:00:00.000Z`);
 
@@ -44,13 +49,13 @@ export async function criarEncontro(novo: NovoEncontro): Promise<Encontro> {
     const id = `${turmaId}:${data}:${inicioEmMinutos}:${fimEmMinutos}`;
 
     const operacao = filaDeGravacao.then(async () => {
-        const encontros = await listarEncontros();
+        const encontros = await listarEncontros(armazenamentoLocal);
         const existente = encontros.find((encontro) => encontro.id === id);
 
         if (existente) return existente;
 
         const encontro = { ...novo, id };
-        await AsyncStorage.setItem(
+        await armazenamentoLocal.setItem(
             CHAVE_ENCONTROS,
             JSON.stringify([...encontros, encontro]),
         );
