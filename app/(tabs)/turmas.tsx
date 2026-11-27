@@ -1,9 +1,10 @@
-import { useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { supabase } from '@/lib/supabase';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Button, FlatList, Text, TextInput, View } from 'react-native';
 
+import { AcessoAdminContext } from '@/lib/acessoContext';
+import { UsuarioLocalContext, useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { criarEncontro } from '@/storage/encontros';
 import { matricularAluno } from '@/storage/matriculas';
 
@@ -11,6 +12,8 @@ type Turma = {
     id: string;
     nome: string;
 };
+
+type TurmaCompartilhada = Turma & { dono_id: string | null };
 
 type AlunoParaMatricula = {
     id: string;
@@ -46,7 +49,8 @@ export default function TurmasScreen() {
     const [mensagemEncontro, setMensagemEncontro] = useState('');
     const [salvandoEncontro, setSalvandoEncontro] = useState(false);
     const encontroEmGravacao = useRef(false);
-    const [turmasCompartilhadas, setTurmasCompartilhadas] = useState<Turma[] | null>(null);
+    const [turmasCompartilhadas, setTurmasCompartilhadas] =
+        useState<TurmaCompartilhada[] | null>(null);
     const [erroTurmasCompartilhadas, setErroTurmasCompartilhadas] = useState('');
     const [turmaCompartilhadaId, setTurmaCompartilhadaId] = useState<string | null>(null);
     const [alunosCompartilhados, setAlunosCompartilhados] =
@@ -56,6 +60,26 @@ export default function TurmasScreen() {
     const [salvandoTurmaCompartilhada, setSalvandoTurmaCompartilhada] = useState(false);
     const [mensagemCriacaoTurma, setMensagemCriacaoTurma] = useState('');
     const criandoTurmaCompartilhada = useRef(false);
+    const podeAdministrar = useContext(AcessoAdminContext);
+    const usuarioId = useContext(UsuarioLocalContext);
+    const [alunoParaTransferirId, setAlunoParaTransferirId] = useState<string | null>(null);
+    const [mensagemMatriculaRemota, setMensagemMatriculaRemota] = useState('');
+    const [matriculandoRemoto, setMatriculandoRemoto] = useState(false);
+    const matriculaRemotaEmAndamento = useRef(false);
+
+    const turmaOrigem = turmasCompartilhadas?.find(
+        (turma) => turma.id === turmaCompartilhadaId,
+    );
+
+    const podeMatricularDaOrigem = Boolean(
+        turmaOrigem && (podeAdministrar || (usuarioId && turmaOrigem.dono_id === usuarioId)),
+    );
+
+    const turmasDestino = (turmasCompartilhadas ?? []).filter(
+        (turma) =>
+            turma.id !== turmaCompartilhadaId &&
+            (podeAdministrar || (usuarioId !== null && turma.dono_id === usuarioId)),
+    );
 
     const armazenamentoLocal = useArmazenamentoLocal();
 
@@ -211,7 +235,7 @@ export default function TurmasScreen() {
                 try {
                     const { data, error } = await supabase
                         .from('turmas')
-                        .select('id, nome')
+                        .select('id, nome, dono_id')
                         .order('nome');
 
                     if (error) throw error;
@@ -307,7 +331,7 @@ export default function TurmasScreen() {
             const { data, error } = await supabase
                 .from('turmas')
                 .insert({ nome })
-                .select('id, nome')
+                .select('id, nome, dono_id')
                 .single();
 
             if (error) {
@@ -330,6 +354,38 @@ export default function TurmasScreen() {
         } finally {
             criandoTurmaCompartilhada.current = false;
             setSalvandoTurmaCompartilhada(false);
+        }
+    }
+
+    async function matricularEmOutraTurma(turmaDestinoId: string) {
+        if (
+            !podeMatricularDaOrigem ||
+            !alunoParaTransferirId ||
+            matriculaRemotaEmAndamento.current
+        ) {
+            return;
+        }
+
+        matriculaRemotaEmAndamento.current = true;
+        setMensagemMatriculaRemota('Verificando matrícula…');
+        setMensagemMatriculaRemota('');
+
+        try {
+            const { data, error } = await supabase.rpc('matricular_aluno_existente', {
+                p_turma_id: turmaDestinoId,
+                p_aluno_id: alunoParaTransferirId,
+            });
+
+            if (error) throw error;
+
+            setMensagemMatriculaRemota(
+                data === true ? 'Matrícula realizada.' : 'O aluno já está matriculado nesta turma.',
+            );
+        } catch {
+            setMensagemMatriculaRemota('Não foi possível realizar a matrícula nesta turma.');
+        } finally {
+            matriculaRemotaEmAndamento.current = false;
+            setMatriculandoRemoto(false);
         }
     }
 
@@ -366,14 +422,21 @@ export default function TurmasScreen() {
                         <Button
                             key={turma.id}
                             title={turma.nome}
-                            onPress={() => setTurmaCompartilhadaId(turma.id)}
+                            disabled={matriculandoRemoto}
+                            onPress={() => {
+                                setTurmaCompartilhadaId(turma.id);
+                                setAlunoParaTransferirId(null);
+                                setMensagemMatriculaRemota('');
+                            }}
                         />
                     ))
 
                 )}
                 {turmaCompartilhadaId !== null ? (
                     <View style={{ gap: 4 }}>
-                        <Text style={{ fontWeight: 'bold' }}>Alunos da turma selecionada</Text>
+                        <Text accessibilityLiveRegion="polite" style={{ minHeight: 22 }}>
+                            {mensagemMatriculaRemota}
+                        </Text>
 
                         {erroAlunosCompartilhados ? (
                             <Text>{erroAlunosCompartilhados}</Text>
@@ -383,9 +446,43 @@ export default function TurmasScreen() {
                             <Text>Nenhum aluno matriculado nesta turma.</Text>
                         ) : (
                             alunosCompartilhados.map((aluno) => (
-                                <Text key={aluno.id}>{aluno.nome}</Text>
+                                podeMatricularDaOrigem ? (
+                                    <Button
+                                        key={aluno.id}
+                                        title={alunoParaTransferirId === aluno.id ? `Selecionado: ${aluno.nome}` : aluno.nome}
+                                        disabled={matriculandoRemoto}
+                                        onPress={() => {
+                                            setAlunoParaTransferirId(aluno.id);
+                                            setMensagemMatriculaRemota('');
+                                        }}
+                                    />
+                                ) : (
+                                    <Text key={aluno.id}>{aluno.nome}</Text>
+                                )
                             ))
                         )}
+
+                        {podeMatricularDaOrigem && alunoParaTransferirId ? (
+                            <View style={{ gap: 4 }}>
+                                <Text>Matricular também em</Text>
+                                {turmasDestino.length === 0 ? (
+                                    <Text>Crie outra turma para matricular este aluno.</Text>
+                                ) : (
+                                    turmasDestino.map((turma) => (
+                                        <Button
+                                            key={turma.id}
+                                            title={turma.nome}
+                                            disabled={matriculandoRemoto}
+                                            onPress={() => void matricularEmOutraTurma(turma.id)}
+                                        />
+                                    ))
+                                )}
+                            </View>
+                        ) : null}
+
+                        {mensagemMatriculaRemota ? (
+                            <Text accessibilityLiveRegion="polite">{mensagemMatriculaRemota}</Text>
+                        ) : null}
                     </View>
                 ) : null}
             </View>

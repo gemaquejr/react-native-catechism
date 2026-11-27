@@ -1,8 +1,8 @@
 import { AcessoAdminContext } from '@/lib/acessoContext';
 import { useArmazenamentoLocal } from '@/lib/armazenamentoLocal';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'expo-router';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Alert, Button, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Aluno = {
@@ -75,7 +75,7 @@ export default function CadastroScreen() {
         router.back();
     }
 
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
         let ativo = true;
 
         async function carregarTurmasCompartilhadas() {
@@ -105,7 +105,7 @@ export default function CadastroScreen() {
         return () => {
             ativo = false;
         };
-    }, [podeAdministrar]);
+    }, [podeAdministrar]));
 
     async function cadastrarNaTurmaCompartilhada() {
         if (!turmaCompartilhadaId || gravacaoEmAndamento.current) return;
