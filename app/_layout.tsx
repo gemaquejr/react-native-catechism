@@ -1,3 +1,4 @@
+import { AcessoAdminContext } from '@/lib/acessoContext';
 import { UsuarioLocalContext } from '@/lib/armazenamentoLocal';
 import { supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
@@ -116,30 +117,31 @@ export default function RootLayout() {
 
   if (logado === null) return null;
 
+  const podeAdministrar =
+    logado &&
+    acesso?.usuarioId === usuarioId &&
+    acesso?.status === 'aprovado' &&
+    acesso?.papel === 'administrador';
+
   return (
     <>
       <UsuarioLocalContext.Provider key={usuarioId ?? 'visitante'} value={usuarioId ?? null}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Protected guard={!logado}>
-            <Stack.Screen name="login" />
-          </Stack.Protected>
+        <AcessoAdminContext.Provider value={podeAdministrar}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Protected guard={!logado}>
+              <Stack.Screen name="login" />
+            </Stack.Protected>
 
-          <Stack.Protected guard={logado}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="modal" />
-          </Stack.Protected>
+            <Stack.Protected guard={logado}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="modal" />
+            </Stack.Protected>
 
-          <Stack.Protected
-            guard={
-              logado &&
-              acesso?.usuarioId === usuarioId &&
-              acesso?.status === 'aprovado' &&
-              acesso?.papel === 'administrador'
-            }
-          >
-            <Stack.Screen name="solicitacoes-acesso" />
-          </Stack.Protected>
-        </Stack>
+            <Stack.Protected guard={podeAdministrar}>
+              <Stack.Screen name="solicitacoes-acesso" />
+            </Stack.Protected>
+          </Stack>
+        </AcessoAdminContext.Provider>
       </UsuarioLocalContext.Provider>
       <StatusBar style="auto" />
     </>
