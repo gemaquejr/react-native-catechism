@@ -9,6 +9,7 @@ import { Button, Text, View } from 'react-native';
 type Acesso = {
   usuarioId: string;
   status: 'pendente' | 'aprovado' | 'revogado' | 'sem-perfil' | 'erro';
+  papel?: 'administrador' | 'catequista';
 };
 
 export default function RootLayout() {
@@ -37,7 +38,7 @@ export default function RootLayout() {
       try {
         const { data, error } = await supabase
           .from('perfis_acesso')
-          .select('status')
+          .select('status, papel')
           .eq('usuario_id', id)
           .maybeSingle();
 
@@ -52,6 +53,7 @@ export default function RootLayout() {
             status === 'pendente' || status === 'aprovado' || status === 'revogado'
               ? status
               : 'sem-perfil',
+          papel: data?.papel === 'administrador' ? 'administrador' : 'catequista',
         });
       } catch {
         if (ativo) setAcesso({ usuarioId: id, status: 'erro' });
@@ -125,6 +127,17 @@ export default function RootLayout() {
           <Stack.Protected guard={logado}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" />
+          </Stack.Protected>
+
+          <Stack.Protected
+            guard={
+              logado &&
+              acesso?.usuarioId === usuarioId &&
+              acesso?.status === 'aprovado' &&
+              acesso?.papel === 'administrador'
+            }
+          >
+            <Stack.Screen name="solicitacoes-acesso" />
           </Stack.Protected>
         </Stack>
       </UsuarioLocalContext.Provider>
