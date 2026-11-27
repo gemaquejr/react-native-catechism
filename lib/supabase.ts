@@ -16,6 +16,7 @@ export const supabase = createClient(url, chavePublicavel, {
         ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
+        flowType: Platform.OS === 'web' ? 'pkce' : 'implicit',
+        detectSessionInUrl: Platform.OS === 'web',
     },
 });

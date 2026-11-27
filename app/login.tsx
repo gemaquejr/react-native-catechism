@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { useRef, useState } from 'react';
 import type { ViewStyle } from 'react-native';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -61,6 +61,10 @@ export default function LoginScreen() {
             const { data, error } = await supabase.auth.signUp({
                 email: emailLimpo,
                 password: senha,
+                options:
+                    Platform.OS === 'web'
+                        ? { emailRedirectTo: `${window.location.origin}/login` }
+                        : undefined,
             });
 
             if (error) {
